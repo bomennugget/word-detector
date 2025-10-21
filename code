@@ -1,0 +1,593 @@
+(function() {
+  // Remove previous style & popup if present
+  const oldStyle = document.getElementById('word-detector-style');
+  if (oldStyle) oldStyle.remove();
+  const oldPopup = document.getElementById('word-detector-popup');
+  if (oldPopup) oldPopup.remove();
+
+  // CSS styles
+  const style = document.createElement('style');
+  style.id = 'word-detector-style';
+  style.textContent = `
+    .word-highlight {
+      font-weight: 700;
+      border-radius: 3px;
+      padding: 0 3px;
+      color: black;
+      transition: background-color 0.3s ease;
+      cursor: pointer;
+    }
+    #word-detector-popup {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 360px;
+      max-width: 90%;
+      background: white;
+      border: 2px solid #555;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      z-index: 9999999;
+      user-select: none;
+      cursor: default;
+      display: flex;
+      flex-direction: column;
+      padding: 14px 18px 18px;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #word-detector-popup.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #word-detector-popup header {
+      cursor: move;
+      font-weight: 700;
+      font-size: 18px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    #word-detector-popup header .close-btn {
+      font-size: 22px;
+      font-weight: 700;
+      color: #c00;
+      cursor: pointer;
+      user-select: none;
+      padding: 0 6px;
+      line-height: 1;
+      transition: color 0.2s ease;
+    }
+    #word-detector-popup header .close-btn:hover {
+      color: #800000;
+    }
+    #word-detector-popup header button.icon-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #3a86ff;
+      padding: 0 6px;
+      line-height: 1;
+      user-select: none;
+    }
+    #word-detector-popup label {
+      font-size: 14px;
+      margin-right: 10px;
+      user-select: none;
+    }
+    #word-detector-popup input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      font-size: 15px;
+      border: 1.7px solid #aaa;
+      border-radius: 7px;
+      outline-offset: 2px;
+      outline-color: #888;
+      box-sizing: border-box;
+    }
+    #word-detector-popup button.main-btn {
+      padding: 9px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      border-radius: 7px;
+      background-color: #3a86ff;
+      color: white;
+      transition: background-color 0.25s ease-in-out, transform 0.2s ease;
+      margin-top: 5px;
+      user-select: none;
+      box-shadow: 0 3px 8px rgba(58,134,255,0.4);
+    }
+    #word-detector-popup button.main-btn:hover:not(:disabled) {
+      background-color: #265fd4;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(38,95,212,0.6);
+    }
+    #word-detector-popup button.main-btn:disabled {
+      background-color: #bbb;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #word-detector-popup .options {
+      display: flex;
+      justify-content: flex-start;
+      gap: 14px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      user-select: none;
+    }
+    #word-detector-popup #word-detector-result {
+      font-size: 14px;
+      color: #444;
+      min-height: 22px;
+      margin-top: 10px;
+      user-select: text;
+      line-height: 1.2;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #word-detector-popup #spinner {
+      width: 18px;
+      height: 18px;
+      border: 3.5px solid #ccc;
+      border-top-color: #3a86ff;
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+      display: none;
+      flex-shrink: 0;
+    }
+    #word-detector-popup footer {
+      margin-top: 14px;
+      font-size: 12px;
+      color: #666;
+      user-select: none;
+      text-align: center;
+      font-style: italic;
+    }
+    #word-detector-popup .credits {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #999;
+      font-style: normal;
+      text-align: center;
+      user-select: none;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+      letter-spacing: 0.04em;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Help modal overlay */
+    #word-detector-help-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 10000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: text;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #word-detector-help {
+      background: white;
+      border-radius: 14px;
+      max-width: 400px;
+      width: 100%;
+      padding: 20px 26px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      color: #222;
+      user-select: text;
+      position: relative;
+    }
+    #word-detector-help h2 {
+      margin-top: 0;
+      font-weight: 700;
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: #3a86ff;
+    }
+    #word-detector-help p {
+      font-size: 15px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    #word-detector-help ul {
+      padding-left: 20px;
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    #word-detector-help ul li {
+      margin-bottom: 6px;
+    }
+    #word-detector-help button.close-help-btn {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      font-size: 20px;
+      font-weight: 700;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #c00;
+      padding: 0;
+      line-height: 1;
+      user-select: none;
+      transition: color 0.2s ease;
+    }
+    #word-detector-help button.close-help-btn:hover {
+      color: #800000;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Color palette for highlights
+  const highlightColors = [
+    '#ffb3ba', '#ffdfba', '#ffffba', '#baffc9', '#bae1ff',
+    '#e3baff', '#ffc4f1', '#b2f7ef', '#d0f4de', '#f7d1cd'
+  ];
+
+  // Persistence: saved words
+  function loadWords() {
+    try {
+      const stored = localStorage.getItem('wordDetectorWords');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+  function saveWords(words) {
+    try {
+      localStorage.setItem('wordDetectorWords', JSON.stringify(words));
+    } catch {
+      // fail silently
+    }
+  }
+
+  // Create popup
+  const popup = document.createElement('div');
+  popup.id = 'word-detector-popup';
+  popup.setAttribute('role', 'dialog');
+  popup.setAttribute('aria-label', 'Word Detector Tool');
+  popup.setAttribute('aria-modal', 'true');
+  popup.innerHTML = `
+    <header>
+      <span>Word Detector</span>
+      <div>
+        <button id="word-detector-help-btn" class="icon-btn" title="Help" aria-label="Open help dialog">?</button>
+        <span class="close-btn" title="Close" role="button" aria-label="Close word detector popup">&times;</span>
+      </div>
+    </header>
+    <input type="text" placeholder="Enter words separated by commas" id="word-detector-input" spellcheck="false" autocomplete="off" aria-describedby="word-detector-desc" />
+    <div class="options" aria-describedby="word-detector-desc">
+      <label><input type="checkbox" id="case-sensitive" /> Case sensitive</label>
+      <label><input type="checkbox" id="whole-word" checked /> Whole word only</label>
+    </div>
+    <button id="word-detector-btn" class="main-btn" aria-label="Detect words">Detect</button>
+    <button id="word-detector-clear" class="main-btn" style="background-color:#aaa; margin-top: 6px;" aria-label="Clear highlights and saved words">Clear Highlights & Reset</button>
+    <div id="word-detector-result" aria-live="polite" aria-atomic="true"><div id="spinner"></div><span id="result-text"></span></div>
+    <footer id="word-detector-desc">
+      Type words separated by commas, then press Detect or Enter.<br>
+      Click a highlight to remove it.
+    </footer>
+    <div class="credits">Powered by ChatGPT and bomennugget</div>
+  `;
+  document.body.appendChild(popup);
+
+  // Trigger entrance animation
+  setTimeout(() => popup.classList.add('show'), 50);
+
+  const inputEl = popup.querySelector('#word-detector-input');
+  inputEl.focus();
+
+  // Close handler
+  popup.querySelector('.close-btn').onclick = () => {
+    clearHighlights();
+    popup.remove();
+    style.remove();
+  };
+
+  // Help modal
+  function createHelpModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'word-detector-help-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Help and information about Word Detector tool');
+    overlay.innerHTML = `
+      <div id="word-detector-help">
+        <button class="close-help-btn" aria-label="Close help dialog">&times;</button>
+        <h2>Word Detector Help</h2>
+        <p>This tool lets you quickly highlight and find words on any webpage.</p>
+        <ul>
+          <li><strong>Enter words:</strong> Type one or more words separated by commas.</li>
+          <li><strong>Case sensitive:</strong> Toggle if matching should consider uppercase/lowercase differences.</li>
+          <li><strong>Whole word only:</strong> Match only whole complete words instead of substrings.</li>
+          <li><strong>Detect button:</strong> Highlights the entered words on the page.</li>
+          <li><strong>Clear Highlights & Reset:</strong> Removes all highlights and clears saved words.</li>
+          <li><strong>Click a highlight:</strong> Removes that individual highlight.</li>
+        </ul>
+        <p><em>I made it because I wanted a simple tool to help people search for words but I made it in ChatGPT because I can't program HTML.</em></p>
+        <p style="text-align:center; font-size:13px; color:#777;">— bomennugget</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeBtn = overlay.querySelector('.close-help-btn');
+    closeBtn.onclick = () => {
+      overlay.remove();
+      inputEl.focus();
+    };
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        inputEl.focus();
+      }
+    };
+
+    function escHandler(e) {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        inputEl.focus();
+        document.removeEventListener('keydown', escHandler);
+      }
+    }
+    document.addEventListener('keydown', escHandler);
+  }
+
+  popup.querySelector('#word-detector-help-btn').onclick = createHelpModal;
+
+  // Draggable popup
+  (function makeDraggable(element) {
+    const header = element.querySelector('header');
+    let posX = 0, posY = 0, mouseX = 0, mouseY = 0;
+
+    header.style.userSelect = 'none';
+
+    function dragMouseDown(e) {
+      e.preventDefault();
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      document.addEventListener('mousemove', elementDrag);
+      document.addEventListener('mouseup', closeDrag);
+    }
+
+    function elementDrag(e) {
+      e.preventDefault();
+      posX = mouseX - e.clientX;
+      posY = mouseY - e.clientY;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      const rect = element.getBoundingClientRect();
+      element.style.top = (rect.top - posY) + "px";
+      element.style.left = (rect.left - posX) + "px";
+      element.style.right = 'auto';
+    }
+
+    function closeDrag() {
+      document.removeEventListener('mouseup', closeDrag);
+      document.removeEventListener('mousemove', elementDrag);
+    }
+
+    header.addEventListener('mousedown', dragMouseDown);
+  })(popup);
+
+  // Clear highlights
+  function clearHighlights() {
+    const highlighted = document.querySelectorAll('.word-highlight');
+    highlighted.forEach(el => {
+      const parent = el.parentNode;
+      parent.replaceChild(document.createTextNode(el.textContent), el);
+      parent.normalize();
+    });
+  }
+
+  // Enable click-to-remove for highlights
+  function enableHighlightRemoval() {
+    document.querySelectorAll('.word-highlight').forEach(span => {
+      span.style.cursor = 'pointer';
+      span.title = 'Click to remove this highlight';
+      span.onclick = (e) => {
+        e.stopPropagation();
+        const parent = span.parentNode;
+        parent.replaceChild(document.createTextNode(span.textContent), span);
+        parent.normalize();
+        updateResultAfterRemoval();
+      };
+    });
+  }
+
+  // Update summary after removal
+  function updateResultAfterRemoval() {
+    const counts = {};
+    document.querySelectorAll('.word-highlight').forEach(span => {
+      const w = span.textContent.toLowerCase();
+      counts[w] = (counts[w] || 0) + 1;
+    });
+    if (Object.keys(counts).length === 0) {
+      resultText.textContent = 'No highlights present.';
+      return;
+    }
+    const parts = [];
+    for (const [w, c] of Object.entries(counts)) {
+      parts.push(`"${w}": ${c}`);
+    }
+    resultText.textContent = 'Currently highlighted: ' + parts.join(', ');
+  }
+
+  // Walk DOM for text nodes
+  function walkDOM(node, callback) {
+    if (node.nodeType === 3) {
+      callback(node);
+    } else if (node.nodeType === 1 && node.childNodes && !['SCRIPT','STYLE','NOSCRIPT','IFRAME','TEXTAREA','INPUT','SELECT','BUTTON'].includes(node.tagName)) {
+      node.childNodes.forEach(child => walkDOM(child, callback));
+    }
+  }
+
+  // Highlight words logic
+  function highlightWords(words, caseSensitive, wholeWord) {
+    if (!words.length) return {};
+
+    clearHighlights();
+
+    const regexes = words.map(word => {
+      const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = wholeWord ? `\\b${esc}\\b` : esc;
+      const flags = caseSensitive ? 'g' : 'gi';
+      return new RegExp(pattern, flags);
+    });
+
+    const counts = Array(words.length).fill(0);
+
+    walkDOM(document.body, textNode => {
+      const text = textNode.data;
+      const matches = [];
+
+      regexes.forEach((regex, i) => {
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          matches.push({index: match.index, length: match[0].length, wordIndex: i});
+          if (!regex.global) break;
+        }
+      });
+
+      if (matches.length) {
+        matches.sort((a,b) => a.index - b.index);
+
+        const merged = [];
+        matches.forEach(m => {
+          if (merged.length === 0) merged.push(m);
+          else {
+            const last = merged[merged.length-1];
+            if (m.index < last.index + last.length) {
+              // overlap — skip
+            } else {
+              merged.push(m);
+            }
+          }
+        });
+
+        let lastIndex = 0;
+        const fragment = document.createDocumentFragment();
+
+        merged.forEach(m => {
+          if (m.index > lastIndex) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIndex, m.index)));
+          }
+          const span = document.createElement('span');
+          span.className = 'word-highlight';
+          span.style.backgroundColor = highlightColors[m.wordIndex % highlightColors.length];
+          span.textContent = text.substr(m.index, m.length);
+          fragment.appendChild(span);
+          counts[m.wordIndex]++;
+          lastIndex = m.index + m.length;
+        });
+
+        if (lastIndex < text.length) {
+          fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+        }
+
+        textNode.parentNode.replaceChild(fragment, textNode);
+      }
+    });
+
+    enableHighlightRemoval();
+
+    const result = {};
+    words.forEach((w,i) => result[w] = counts[i]);
+    return result;
+  }
+
+  // Debounce helper
+  function debounce(fn, delay) {
+    let timer = null;
+    return function(...args) {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  // Main detect function
+  const resultText = popup.querySelector('#result-text');
+  const spinner = popup.querySelector('#spinner');
+
+  function detectWords() {
+    clearHighlights();
+
+    const raw = inputEl.value.trim();
+    if (!raw) {
+      resultText.textContent = 'Please enter at least one word.';
+      return;
+    }
+
+    spinner.style.display = 'inline-block';
+    resultText.textContent = '';
+
+    const rawWords = raw.split(',').map(w => w.trim()).filter(Boolean);
+    if (rawWords.length === 0) {
+      spinner.style.display = 'none';
+      resultText.textContent = 'Please enter at least one valid word.';
+      return;
+    }
+
+    saveWords(rawWords);
+
+    const caseSensitive = popup.querySelector('#case-sensitive').checked;
+    const whole = popup.querySelector('#whole-word').checked;
+
+    setTimeout(() => {
+      const counts = highlightWords(rawWords, caseSensitive, whole);
+      spinner.style.display = 'none';
+      const total = Object.values(counts).reduce((a,b) => a + b, 0);
+      if (total === 0) {
+        resultText.textContent = 'No occurrences found for given words.';
+      } else {
+        const summary = rawWords.map(w => `"${w}": ${counts[w]}`).join(', ');
+        resultText.textContent = `Found and highlighted ${total} occurrence${total!==1?'s':''}: ${summary}`;
+      }
+    }, 100);
+  }
+
+  const debouncedDetect = debounce(detectWords, 400);
+
+  popup.querySelector('#word-detector-btn').onclick = detectWords;
+  popup.querySelector('#word-detector-clear').onclick = () => {
+    clearHighlights();
+    inputEl.value = '';
+    saveWords([]);
+    resultText.textContent = 'Highlights and saved words cleared.';
+    spinner.style.display = 'none';
+    inputEl.focus();
+  };
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      detectWords();
+    }
+  });
+  inputEl.addEventListener('input', debouncedDetect);
+
+  const saved = loadWords();
+  if (saved.length > 0) {
+    inputEl.value = saved.join(', ');
+    detectWords();
+  }
+
+})();
