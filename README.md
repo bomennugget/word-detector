@@ -1,2 +1,2 @@
 # word-detector
-detect words in websites using this tool
+*detect words in websites using this tool*
